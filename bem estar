@@ -1,0 +1,469 @@
+/**
+ * SISTEMA DE BEM-ESTAR ESCOLAR
+ * Código simples e completo - Sem banco de dados
+ * Conceitos: Herança, Encapsulamento, Polimorfismo
+ */
+
+class User {
+  #password;
+
+  constructor(id, name, email, password, role) {
+    this._id = id;
+    this._name = name;
+    this._email = email;
+    this.#password = password;
+    this._role = role;
+    this._isActive = true;
+  }
+
+  login(password) {
+    return this.#password === password;
+  }
+
+  getInfo() {
+    return {
+      id: this._id,
+      name: this._name,
+      email: this._email,
+      role: this._role,
+      isActive: this._isActive
+    };
+  }
+
+  getPermissions() {
+    throw new Error('Implemente getPermissions()');
+  }
+}
+
+class Student extends User {
+  #anxietyHistory = [];
+
+  constructor(id, name, email, password, grade, parentEmail) {
+    super(id, name, email, password, 'student');
+    this.grade = grade;
+    this.parentEmail = parentEmail;
+    this.anxietyLevel = 0;
+  }
+
+  registerAnxiety(level, symptoms = []) {
+    if (level < 0 || level > 10) {
+      throw new Error('Nível deve estar entre 0 e 10');
+    }
+
+    this.anxietyLevel = level;
+    this.#anxietyHistory.push({
+      date: new Date(),
+      level: level,
+      symptoms: symptoms
+    });
+
+    return { success: true, message: 'Ansiedade registrada' };
+  }
+
+  getAnxietyHistory() {
+    return this.#anxietyHistory;
+  }
+
+  isAtRisk() {
+    return this.anxietyLevel >= 7;
+  }
+
+  getPermissions() {
+    return [
+      'view_own_grades',
+      'view_own_anxiety_data',
+      'submit_assignments'
+    ];
+  }
+
+  getFullInfo() {
+    return {
+      ...this.getInfo(),
+      grade: this.grade,
+      anxietyLevel: this.anxietyLevel,
+      isAtRisk: this.isAtRisk(),
+      permissions: this.getPermissions()
+    };
+  }
+}
+
+class Teacher extends User {
+  #students = [];
+  #classes = [];
+
+  constructor(id, name, email, password, department) {
+    super(id, name, email, password, 'teacher');
+    this.department = department;
+  }
+
+  addStudent(studentId, studentName) {
+    this.#students.push({ id: studentId, name: studentName });
+    return { success: true, message: 'Aluno adicionado' };
+  }
+
+  getStudents() {
+    return this.#students;
+  }
+
+  addClass(classId, className) {
+    this.#classes.push({ id: classId, name: className });
+    return { success: true, message: 'Turma criada' };
+  }
+
+  getAtRiskStudents(allStudents) {
+    return allStudents.filter(
+      s => this.#students.some(st => st.id === s._id) && s.isAtRisk()
+    );
+  }
+
+  getPermissions() {
+    return [
+      'view_student_grades',
+      'create_assignments',
+      'view_anxiety_levels',
+      'message_students'
+    ];
+  }
+
+  getFullInfo() {
+    return {
+      ...this.getInfo(),
+      department: this.department,
+      studentsCount: this.#students.length,
+      classesCount: this.#classes.length,
+      permissions: this.getPermissions()
+    };
+  }
+}
+
+class Psychologist extends User {
+  #patients = [];
+  #appointments = [];
+
+  constructor(id, name, email, password, crp) {
+    super(id, name, email, password, 'psychologist');
+    this.crp = crp;
+  }
+
+  addPatient(studentId, studentName, reason = '') {
+    this.#patients.push({
+      id: studentId,
+      name: studentName,
+      reason: reason,
+      startDate: new Date()
+    });
+    return { success: true, message: 'Paciente adicionado' };
+  }
+
+  scheduleAppointment(studentId, date, time) {
+    if (date < new Date()) {
+      throw new Error('Data não pode ser no passado');
+    }
+
+    this.#appointments.push({
+      studentId: studentId,
+      date: date,
+      time: time,
+      status: 'scheduled',
+      createdAt: new Date()
+    });
+    return { success: true, message: 'Agendamento criado' };
+  }
+
+  getAppointments() {
+    return this.#appointments;
+  }
+
+  getPatientsAtRisk(allStudents) {
+    return allStudents.filter(
+      s => this.#patients.some(p => p.id === s._id) && s.isAtRisk()
+    );
+  }
+
+  getPermissions() {
+    return [
+      'view_all_anxiety_data',
+      'manage_appointments',
+      'record_interventions',
+      'generate_reports'
+    ];
+  }
+
+  getFullInfo() {
+    return {
+      ...this.getInfo(),
+      crp: this.crp,
+      patientsCount: this.#patients.length,
+      appointmentsCount: this.#appointments.length,
+      permissions: this.getPermissions()
+    };
+  }
+}
+
+class Admin extends User {
+  #users = [];
+  #logs = [];
+
+  constructor(id, name, email, password) {
+    super(id, name, email, password, 'admin');
+  }
+
+  registerUser(user) {
+    this.#users.push(user);
+    this.#logs.push({
+      action: 'user_created',
+      userId: user._id,
+      timestamp: new Date()
+    });
+    return { success: true, message: 'Usuário registrado' };
+  }
+
+  deleteUser(userId) {
+    const index = this.#users.findIndex(u => u._id === userId);
+    if (index !== -1) {
+      this.#users.splice(index, 1);
+      this.#logs.push({
+        action: 'user_deleted',
+        userId: userId,
+        timestamp: new Date()
+      });
+      return { success: true, message: 'Usuário deletado' };
+    }
+    throw new Error('Usuário não encontrado');
+  }
+
+  getUsers() {
+    return this.#users;
+  }
+
+  getLogs() {
+    return this.#logs;
+  }
+
+  getPermissions() {
+    return [
+      'manage_users',
+      'delete_users',
+      'view_all_data',
+      'generate_reports',
+      'system_config'
+    ];
+  }
+
+  getFullInfo() {
+    return {
+      ...this.getInfo(),
+      usersCount: this.#users.length,
+      logsCount: this.#logs.length,
+      permissions: this.getPermissions()
+    };
+  }
+}
+
+class SchoolSystem {
+  constructor() {
+    this.users = [];
+    this.students = [];
+    this.teachers = [];
+    this.psychologists = [];
+    this.admin = null;
+  }
+
+  initialize() {
+    const student1 = new Student(1, 'João Silva', 'joao@email.com', 'senha123', '9º Ano', 'pai@email.com');
+    const student2 = new Student(2, 'Maria Santos', 'maria@email.com', 'senha123', '9º Ano', 'mae@email.com');
+
+    const teacher = new Teacher(3, 'Prof. Carlos', 'carlos@email.com', 'senha123', 'Matemática');
+    teacher.addStudent(1, 'João Silva');
+    teacher.addStudent(2, 'Maria Santos');
+
+    const psychologist = new Psychologist(4, 'Dr. Rafael', 'rafael@email.com', 'senha123', 'CRP-123456');
+    psychologist.addPatient(1, 'João Silva', 'Ansiedade elevada');
+
+    const admin = new Admin(5, 'Admin User', 'admin@email.com', 'admin123');
+
+    this.students = [student1, student2];
+    this.teachers = [teacher];
+    this.psychologists = [psychologist];
+    this.admin = admin;
+
+    this.users = [student1, student2, teacher, psychologist, admin];
+
+    return {
+      success: true,
+      message: 'Sistema inicializado com sucesso',
+      data: {
+        students: this.students.length,
+        teachers: this.teachers.length,
+        psychologists: this.psychologists.length
+      }
+    };
+  }
+
+  login(email, password) {
+    const user = this.users.find(u => u._email === email);
+
+    if (!user) {
+      return { success: false, error: 'Usuário não encontrado' };
+    }
+
+    if (!user.login(password)) {
+      return { success: false, error: 'Senha incorreta' };
+    }
+
+    return {
+      success: true,
+      message: 'Login bem-sucedido',
+      user: user.getInfo()
+    };
+  }
+
+  registerAnxiety(studentId, level, symptoms) {
+    const student = this.students.find(s => s._id === studentId);
+
+    if (!student) {
+      return { success: false, error: 'Aluno não encontrado' };
+    }
+
+    try {
+      student.registerAnxiety(level, symptoms);
+      return {
+        success: true,
+        message: 'Ansiedade registrada',
+        data: {
+          studentId: studentId,
+          level: level,
+          isAtRisk: student.isAtRisk()
+        }
+      };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  scheduleAppointment(psychologistId, studentId, date, time) {
+    const psychologist = this.psychologists.find(p => p._id === psychologistId);
+
+    if (!psychologist) {
+      return { success: false, error: 'Psicólogo não encontrado' };
+    }
+
+    try {
+      psychologist.scheduleAppointment(studentId, date, time);
+      return {
+        success: true,
+        message: 'Agendamento criado',
+        data: {
+          studentId: studentId,
+          date: date,
+          time: time
+        }
+      };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getAtRiskStudents() {
+    return this.students.filter(s => s.isAtRisk()).map(s => ({
+      id: s._id,
+      name: s._name,
+      anxietyLevel: s.anxietyLevel,
+      message: 'Requer intervenção do psicólogo'
+    }));
+  }
+
+  getReport() {
+    return {
+      timestamp: new Date(),
+      totalUsers: this.users.length,
+      students: this.students.length,
+      teachers: this.teachers.length,
+      psychologists: this.psychologists.length,
+      atRiskStudents: this.getAtRiskStudents(),
+      permissions: {
+        students: this.students[0]?.getPermissions() || [],
+        teachers: this.teachers[0]?.getPermissions() || [],
+        psychologists: this.psychologists[0]?.getPermissions() || [],
+        admin: this.admin?.getPermissions() || []
+      }
+    };
+  }
+}
+
+function main() {
+  console.log('\n========== SISTEMA DE BEM-ESTAR ESCOLAR ==========\n');
+
+  const system = new SchoolSystem();
+  const init = system.initialize();
+  console.log('✅', init.message);
+  console.log('   Alunos:', init.data.students);
+  console.log('   Professores:', init.data.teachers);
+  console.log('   Psicólogos:', init.data.psychologists);
+
+  console.log('\n--- TESTE 1: LOGIN ---');
+  const login = system.login('joao@email.com', 'senha123');
+  console.log(login.message);
+  console.log('Usuário:', login.user.name, '(' + login.user.role + ')');
+
+  console.log('\n--- TESTE 2: REGISTRAR ANSIEDADE ---');
+  const anxiety1 = system.registerAnxiety(1, 6, ['tensão', 'insônia']);
+  console.log(anxiety1.message);
+  console.log('Nível:', anxiety1.data.level, '| Em risco:', anxiety1.data.isAtRisk);
+
+  const anxiety2 = system.registerAnxiety(1, 8, ['tremores']);
+  console.log(anxiety2.message);
+  console.log('Nível:', anxiety2.data.level, '| Em risco:', anxiety2.data.isAtRisk);
+
+  console.log('\n--- TESTE 3: ALUNOS EM RISCO ---');
+  const atRisk = system.getAtRiskStudents();
+  console.log('Total em risco:', atRisk.length);
+  atRisk.forEach(student => {
+    console.log(`  • ${student.name}: Nível ${student.anxietyLevel}/10`);
+  });
+
+  console.log('\n--- TESTE 4: AGENDAR SESSÃO ---');
+  const appointment = system.scheduleAppointment(4, 1, new Date('2024-06-15'), '14:00');
+  console.log(appointment.message);
+  console.log('Data:', appointment.data.date);
+  console.log('Hora:', appointment.data.time);
+
+  console.log('\n--- TESTE 5: POLIMORFISMO - PERMISSÕES ---');
+  const student = system.students[0];
+  const teacher = system.teachers[0];
+  const psychologist = system.psychologists[0];
+  const admin = system.admin;
+
+  console.log('\n🎓 Aluno:');
+  student.getPermissions().forEach(p => console.log('  ✓', p));
+
+  console.log('\n👨‍🏫 Professor:');
+  teacher.getPermissions().forEach(p => console.log('  ✓', p));
+
+  console.log('\n👨‍⚕️ Psicólogo:');
+  psychologist.getPermissions().forEach(p => console.log('  ✓', p));
+
+  console.log('\n👨‍💼 Admin:');
+  admin.getPermissions().forEach(p => console.log('  ✓', p));
+
+  console.log('\n--- TESTE 6: RELATÓRIO FINAL ---');
+  const report = system.getReport();
+  console.log('Total de usuários:', report.totalUsers);
+  console.log('Alunos:', report.students);
+  console.log('Professores:', report.teachers);
+  console.log('Psicólogos:', report.psychologists);
+  console.log('Alunos em risco:', report.atRiskStudents.length);
+
+  console.log('\n--- TESTE 7: TRATAMENTO DE ERROS ---');
+  const loginError = system.login('email@invalido.com', 'senha123');
+  console.log('✗', loginError.error);
+
+  const anxietyError = system.registerAnxiety(1, 15, []);
+  console.log('✗', anxietyError.error);
+
+  console.log('\n========== FIM DO TESTE ==========\n');
+}
+
+main();
+
+module.exports = { User, Student, Teacher, Psychologist, Admin, SchoolSystem };
